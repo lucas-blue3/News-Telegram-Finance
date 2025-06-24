@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8501:8501"
+    volumes:
+      - ../:/app
+      - ./data:/app/data
+    env_file:
+      - ../.env
+    depends_on:
+      - postgres
+      - chroma
+    networks:
+      - aletheia-network
+
+  postgres:
+    image: postgres:14
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-aletheia}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - aletheia-network
+
+  chroma:
+    image: ghcr.io/chroma-core/chroma:latest
+    volumes:
+      - chroma-data:/chroma/chroma
+    ports:
+      - "8000:8000"
+    networks:
+      - aletheia-network
+
+  # Uncomment to add Neo4j (optional)
+  # neo4j:
+  #   image: neo4j:5
+  #   environment:
+  #     - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-password}
+  #   ports:
+  #     - "7474:7474"
+  #     - "7687:7687"
+  #   volumes:
+  #     - neo4j-data:/data
+  #   networks:
+  #     - aletheia-network
+
+networks:
+  aletheia-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  chroma-data:
+  # neo4j-data:
