@@ -72,7 +72,37 @@ This will:
    - **Tavily API**: Register at [Tavily](https://tavily.com/) for web search and news capabilities
    - **FRED API**: Get your API key from [FRED (Federal Reserve Economic Data)](https://fred.stlouisfed.org/docs/api/api_key.html)
 
-   > **Important**: Never commit your `.env` file to version control. It's already added to `.gitignore` to prevent accidental exposure of your API keys.
+   > **SECURITY WARNING**: Never commit your `.env` file to version control. It's already added to `.gitignore` to prevent accidental exposure of your API keys. If you accidentally committed API keys, consider them compromised and rotate them immediately.
+   
+   Example `.env` file format:
+   ```
+   # API Keys
+   DEEPSEEK_API_KEY=your_deepseek_api_key_here
+   DEEPSEEK_API_BASE_URL=https://api.deepseek.com/v1
+   
+   # Twitter/X API
+   TWITTER_API_KEY=your_twitter_api_key_here
+   TWITTER_API_SECRET=your_twitter_api_secret_here
+   TWITTER_ACCESS_TOKEN=your_twitter_access_token_here
+   TWITTER_ACCESS_SECRET=your_twitter_access_secret_here
+   TWITTER_BEARER_TOKEN=your_twitter_bearer_token_here
+   
+   # Tavily API (for news and web search)
+   TAVILY_API_KEY=your_tavily_api_key_here
+   
+   # FRED API
+   FRED_API_KEY=your_fred_api_key_here
+   
+   # Database Configuration
+   POSTGRES_USER=postgres
+   POSTGRES_PASSWORD=your_secure_password_here
+   POSTGRES_DB=aletheia
+   POSTGRES_HOST=localhost
+   POSTGRES_PORT=5432
+   
+   # Vector Database
+   VECTOR_DB_PATH=./data/vectordb
+   ```
 
 3. Create a virtual environment:
    ```bash
