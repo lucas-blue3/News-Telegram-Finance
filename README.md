@@ -66,6 +66,14 @@ This will:
    # Edit .env with your API keys and configuration
    ```
 
+   You'll need to obtain the following API keys:
+   - **DeepSeek API**: Sign up at [DeepSeek](https://deepseek.ai/) to get your API key
+   - **Twitter/X API**: Create a developer account at [Twitter Developer Portal](https://developer.twitter.com/)
+   - **Tavily API**: Register at [Tavily](https://tavily.com/) for web search and news capabilities
+   - **FRED API**: Get your API key from [FRED (Federal Reserve Economic Data)](https://fred.stlouisfed.org/docs/api/api_key.html)
+
+   > **Important**: Never commit your `.env` file to version control. It's already added to `.gitignore` to prevent accidental exposure of your API keys.
+
 3. Create a virtual environment:
    ```bash
    python -m venv venv
