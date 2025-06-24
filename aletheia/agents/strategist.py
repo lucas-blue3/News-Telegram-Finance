@@ -35,9 +35,9 @@ class StrategistAgent:
             memory_k: Number of conversation turns to keep in memory
         """
         self.llm = llm or ChatOpenAI(
-            model="deepseek-chat",
+            model="deepseek-reasoner",
             temperature=0.1,
-            base_url="https://api.deepseek.com/v1",  # Replace with actual DeepSeek API URL
+            base_url="https://api.deepseek.com/v1",
         )
         
         # Create orchestration graph as a tool

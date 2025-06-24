@@ -8,19 +8,18 @@ from typing import Dict, List, Optional, Any, Union
 
 import tweepy
 from langchain_core.tools import BaseTool, tool
-from newsapi import NewsApiClient
-from praw import Reddit
 import arxiv
 from sec_edgar_downloader import Downloader
+
+from aletheia.api.tavily import TavilyClient
 
 class NarrativeHunterAgent:
     """
     Agent responsible for collecting qualitative data from various sources:
     - Twitter/X
-    - News APIs
+    - Tavily (for news and web search)
     - SEC Filings
     - Research papers (arXiv)
-    - Reddit
     """
     
     def __init__(self):
@@ -28,11 +27,8 @@ class NarrativeHunterAgent:
         # Initialize Twitter API client
         self._init_twitter_client()
         
-        # Initialize News API client
-        self._init_news_client()
-        
-        # Initialize Reddit client
-        self._init_reddit_client()
+        # Initialize Tavily API client
+        self._init_tavily_client()
         
         # Initialize SEC Edgar downloader
         self._init_sec_edgar()
@@ -60,39 +56,19 @@ class NarrativeHunterAgent:
             self.twitter_client = None
             print(f"Error initializing Twitter client: {e}")
     
-    def _init_news_client(self):
-        """Initialize the News API client."""
+    def _init_tavily_client(self):
+        """Initialize the Tavily API client."""
         try:
-            news_api_key = os.getenv("NEWS_API_KEY")
+            tavily_api_key = os.getenv("TAVILY_API_KEY")
             
-            if news_api_key:
-                self.news_client = NewsApiClient(api_key=news_api_key)
+            if tavily_api_key:
+                self.tavily_client = TavilyClient(api_key=tavily_api_key)
             else:
-                self.news_client = None
-                print("News API key not found. News API functionality will be disabled.")
+                self.tavily_client = None
+                print("Tavily API key not found. Tavily functionality will be disabled.")
         except Exception as e:
-            self.news_client = None
-            print(f"Error initializing News API client: {e}")
-    
-    def _init_reddit_client(self):
-        """Initialize the Reddit client."""
-        try:
-            client_id = os.getenv("REDDIT_CLIENT_ID")
-            client_secret = os.getenv("REDDIT_CLIENT_SECRET")
-            user_agent = os.getenv("REDDIT_USER_AGENT", "aletheia:v0.1.0 (by /u/aletheia_bot)")
-            
-            if client_id and client_secret:
-                self.reddit_client = Reddit(
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    user_agent=user_agent
-                )
-            else:
-                self.reddit_client = None
-                print("Reddit API credentials not found. Reddit functionality will be disabled.")
-        except Exception as e:
-            self.reddit_client = None
-            print(f"Error initializing Reddit client: {e}")
+            self.tavily_client = None
+            print(f"Error initializing Tavily client: {e}")
     
     def _init_sec_edgar(self):
         """Initialize the SEC EDGAR downloader."""
@@ -199,102 +175,74 @@ class NarrativeHunterAgent:
             return [{"error": f"Error getting tweets from list: {str(e)}"}]
     
     @tool
-    def search_news(self, query: str, days_back: int = 7, language: str = "en", sort_by: str = "relevancy") -> List[Dict[str, Any]]:
+    def search_news(self, query: str, days_back: int = 7, max_results: int = 20, include_domains: Optional[List[str]] = None, exclude_domains: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """
-        Search for news articles matching the query.
+        Search for news articles matching the query using Tavily.
         
         Args:
             query: The search query
             days_back: Number of days to look back
-            language: Language of the articles (default: English)
-            sort_by: Sorting method (relevancy, popularity, publishedAt)
+            max_results: Maximum number of results to return
+            include_domains: List of domains to include in the search
+            exclude_domains: List of domains to exclude from the search
             
         Returns:
             List of news articles with metadata
         """
-        if not self.news_client:
-            return [{"error": "News API client not initialized"}]
+        if not self.tavily_client:
+            return [{"error": "Tavily API client not initialized"}]
         
         try:
-            # Calculate the from_date
-            from_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
-            
             # Search for articles
-            response = self.news_client.get_everything(
-                q=query,
-                from_param=from_date,
-                language=language,
-                sort_by=sort_by
+            articles = self.tavily_client.search_news(
+                query=query,
+                max_results=max_results,
+                days_back=days_back,
+                include_domains=include_domains,
+                exclude_domains=exclude_domains
             )
             
-            # Format the results
-            results = []
-            for article in response.get("articles", []):
-                results.append({
-                    "title": article.get("title"),
-                    "description": article.get("description"),
-                    "url": article.get("url"),
-                    "published_at": article.get("publishedAt"),
-                    "source": {
-                        "name": article.get("source", {}).get("name"),
-                        "id": article.get("source", {}).get("id")
-                    },
-                    "author": article.get("author"),
-                    "content": article.get("content"),
-                    "source": "news_api"
-                })
+            # Add source information
+            for article in articles:
+                article["source_type"] = "tavily_news"
             
-            return results
+            return articles
         except Exception as e:
             return [{"error": f"Error searching news: {str(e)}"}]
     
     @tool
-    def search_reddit(self, subreddit: str, query: str = "", limit: int = 100, time_filter: str = "week") -> List[Dict[str, Any]]:
+    def search_web(self, query: str, max_results: int = 20, include_domains: Optional[List[str]] = None, exclude_domains: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """
-        Search for posts in a subreddit.
+        Search the web for content related to the query using Tavily.
         
         Args:
-            subreddit: The subreddit to search in
-            query: The search query (if empty, returns top posts)
-            limit: Maximum number of results to return
-            time_filter: Time filter (hour, day, week, month, year, all)
+            query: The search query
+            max_results: Maximum number of results to return
+            include_domains: List of domains to include in the search
+            exclude_domains: List of domains to exclude from the search
             
         Returns:
-            List of Reddit posts with metadata
+            List of web pages with metadata
         """
-        if not self.reddit_client:
-            return [{"error": "Reddit client not initialized"}]
+        if not self.tavily_client:
+            return [{"error": "Tavily API client not initialized"}]
         
         try:
-            # Get the subreddit
-            subreddit_obj = self.reddit_client.subreddit(subreddit)
+            # Search the web
+            results = self.tavily_client.search_web(
+                query=query,
+                max_results=max_results,
+                include_domains=include_domains,
+                exclude_domains=exclude_domains
+            )
             
-            # Get posts
-            if query:
-                posts = subreddit_obj.search(query, limit=limit, time_filter=time_filter)
-            else:
-                posts = subreddit_obj.top(time_filter=time_filter, limit=limit)
-            
-            # Format the results
-            results = []
-            for post in posts:
-                results.append({
-                    "id": post.id,
-                    "title": post.title,
-                    "selftext": post.selftext,
-                    "url": post.url,
-                    "created_utc": datetime.fromtimestamp(post.created_utc).isoformat(),
-                    "score": post.score,
-                    "upvote_ratio": post.upvote_ratio,
-                    "num_comments": post.num_comments,
-                    "author": post.author.name if post.author else "[deleted]",
-                    "subreddit": post.subreddit.display_name,
-                    "source": "reddit"
-                })
+            # Add source information
+            for result in results:
+                result["source_type"] = "tavily_web"
             
             return results
         except Exception as e:
-            return [{"error": f"Error searching Reddit: {str(e)}"}]
+            return [{"error": f"Error searching web: {str(e)}"}]
     
     @tool
     def search_arxiv(self, query: str, max_results: int = 50) -> List[Dict[str, Any]]:
@@ -388,6 +336,39 @@ class NarrativeHunterAgent:
         except Exception as e:
             return [{"error": f"Error downloading SEC filings: {str(e)}"}]
     
+    @tool
+    def crawl_website(self, url: str, max_results: int = 50, max_depth: int = 2, instructions: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Crawl a website to extract structured information using Tavily.
+        
+        Args:
+            url: The URL to crawl
+            max_results: Maximum number of pages to crawl
+            max_depth: Maximum depth of the crawl
+            instructions: Natural language instructions for the crawler
+            
+        Returns:
+            Dictionary with crawl results and extracted information
+        """
+        if not self.tavily_client:
+            return {"error": "Tavily API client not initialized"}
+        
+        try:
+            # Crawl the website
+            results = self.tavily_client.crawl_website(
+                url=url,
+                max_results=max_results,
+                max_depth=max_depth,
+                instructions=instructions
+            )
+            
+            # Add source information
+            results["source_type"] = "tavily_crawl"
+            
+            return results
+        except Exception as e:
+            return {"error": f"Error crawling website: {str(e)}"}
+    
     def get_tools(self) -> List[BaseTool]:
         """
         Get all the tools provided by this agent.
@@ -399,7 +380,8 @@ class NarrativeHunterAgent:
             self.search_twitter,
             self.get_twitter_list_tweets,
             self.search_news,
-            self.search_reddit,
+            self.search_web,
+            self.crawl_website,
             self.search_arxiv,
             self.get_sec_filings
         ]
